@@ -1,0 +1,702 @@
+/*
+* Sanya Khattar
+* CS M135 Professor Alnaji
+* Module 7 Project Automated Editor 
+* 30 October 2022
+*/
+
+
+#include <iostream>
+#include <string>
+#include <conio.h>
+#include <vector>
+#include <fstream>
+#include "Coordinates.h"
+#include "MyRectangle.h"
+#include <Windows.h>
+using namespace std;
+
+
+class TextArt : public Coordinates
+{
+public:
+    int foreColor, backColor;
+    int highlight_forecolor, highlight_backcolor;
+    int maximumSizeOfInput;
+    int xpos, ypos;
+    int currRow;
+    vector <string> data;
+    TextArt(string filename, int x, int y, int fore, int back, int highlighted_fore, int highlighted_back);
+    void Display(bool selectFirstEntry);
+    void ColorRow(int entry);
+    void ColorNext();
+    void ColorPrevious();
+    int Getsize() { return data.size(); }
+    string GetEntry() { return data[currRow]; }
+};
+
+
+TextArt::TextArt(string filename, int x, int y, int fore, int back, int highlighted_fore, int highlighted_back)
+{
+    string s;
+    currRow = 0;
+    foreColor = fore;
+    backColor = back;
+    highlight_forecolor = highlighted_fore;
+    highlight_backcolor = highlighted_back;
+
+
+    xpos = x;
+    ypos = y;
+    ifstream input(filename);
+    maximumSizeOfInput = 0;
+    while (input.peek() != -1)
+    {
+        getline(input, s);
+        if (s.length() > maximumSizeOfInput)
+            maximumSizeOfInput = s.length();
+        data.push_back(s);
+    }
+    input.close();
+}
+
+
+void TextArt::ColorNext()
+{
+    setForeGroundAndBackGroundColor(foreColor, backColor);
+    gotoxy(xpos, ypos + currRow);
+    cout << data[currRow];
+    currRow = (currRow + 1) % data.size();
+    setForeGroundAndBackGroundColor(highlight_forecolor, highlight_backcolor);
+    gotoxy(xpos, ypos + currRow);
+    cout << data[currRow];
+}
+
+
+void TextArt::ColorPrevious()
+{
+    setForeGroundAndBackGroundColor(foreColor, backColor);
+    gotoxy(xpos, ypos + currRow);
+    cout << data[currRow];
+    currRow = currRow - 1;
+    if (currRow < 0)
+        currRow = data.size() - 1;
+    setForeGroundAndBackGroundColor(highlight_forecolor, highlight_backcolor);
+    gotoxy(xpos, ypos + currRow);
+    cout << data[currRow];
+}
+
+
+
+
+void TextArt::ColorRow(int entry)
+{
+    gotoxy(xpos, ypos + entry);
+    setForeGroundAndBackGroundColor(highlight_forecolor, highlight_backcolor);
+    cout << data[entry];
+}
+
+
+void TextArt::Display(bool selectFirstEntry = true) //if not called and just ColorNext, shows each input command one by one
+{
+    setForeGroundAndBackGroundColor(foreColor, backColor);
+    MyRectangle R(xpos - 1, ypos - 1, maximumSizeOfInput+2, data.size()+2, 219, true);
+    R.Draw(xpos - 1, ypos - 1, maximumSizeOfInput + 2, data.size() + 2, 219, 15, "");
+    //R.DrawSkelaton(xpos - 1, ypos - 1, maximumSizeOfInput + 2, data.size() + 2);
+  
+    for (int i = 0; i < data.size(); i++)
+    {
+        gotoxy(xpos, ypos + i);
+        cout << data[i];
+    }
+    if (selectFirstEntry)
+        ColorRow(0);
+}
+
+
+/*Node Class for Linked List Creation*/
+class Node
+{
+public:
+    char letter;
+    Node* next;
+    Node* prev;
+    Node(char cc)
+    {
+        letter = cc;
+        next = prev = nullptr;
+    }
+};
+/*End of Node Class*/
+
+
+/*TextEditor Class to Monitor Cursor and XY Position, and Filling Linked List*/
+class TextEditor
+{
+public:
+    Node* currentCursor = nullptr;
+    Node* start = nullptr;
+    Node* end = nullptr;
+    Node* rows[10];
+    Node* Back1 = nullptr;
+    bool backSelected = false;
+    int currentRow = 0;
+    int xPosition = 0;
+    int yPosition = 0;
+
+
+    TextEditor()
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            rows[i] = new Node('.');
+            rows[i]->next = nullptr;
+            rows[i]->prev = nullptr;
+        }
+    }
+
+
+    void Add(char c);
+    void Back();
+    void Forward();
+    void DeleteRow();
+    void BackSpace();
+    void DeleteLetter(int currentrow, char c);
+    void DeleteAllLetter(char c);
+    void DisplayInputFile(string input); //personal display input function
+    void DisplayOutput(TextEditor m, int currentRow);
+    void DisplayDL(TextEditor m, int currentRow, char c);
+    void DisplayDR(TextEditor m, int currentRow);
+    void DisplayDX(TextEditor m, char c);
+    void DisplayFinalOutput(TextEditor m);
+};
+/*End of TextEditor Class*/
+
+
+void TextEditor::Add(char c) //A
+{
+    Node* newChar = new Node(c);
+
+
+    if (rows[currentRow]->next == nullptr) //first entry into row
+    {
+        rows[currentRow]->next = newChar;
+        newChar->prev = rows[currentRow];
+
+
+        start = newChar; //link start to new element
+        currentCursor = newChar; //assign cursor to new element
+        end = newChar; //link end to new element
+    }
+
+
+    else //inserting to middle (backspace, forward) or end
+    {
+        Node* index = rows[currentRow]->next;
+
+
+        if (backSelected==true) //Back was entered previously, inserting in between
+        {
+            currentCursor->next = newChar;
+            newChar->next = Back1;
+            newChar->prev = currentCursor;
+            Back1->prev = newChar;
+
+
+           while (currentCursor->next != nullptr && currentCursor != Back1)
+           {
+                currentCursor = currentCursor->next;
+           }
+
+
+            end = Back1;
+            backSelected = false;
+        }
+
+
+        else //inserting at end
+        {
+            while (index->next != nullptr && index != currentCursor)
+            {
+                index = index->next;
+            }
+
+
+            currentCursor->next = newChar;
+            newChar->prev = currentCursor;
+            currentCursor = newChar;
+            end = currentCursor;
+        }
+    }
+
+
+    xPosition++; //non-null starting element is index 1
+
+
+    /*End of File Protection:
+    To prevent an extra character from being printed, keep cursor at final line to print, NOT one line after*/
+}
+
+
+void TextEditor::Back() //B
+{
+    if (currentCursor->prev != nullptr && currentCursor->prev->letter!='.') //don't go back if at rows[currentRow]
+    {
+        Back1 = currentCursor; //keeps track of the cursor before moving back
+        
+        currentCursor = currentCursor->prev; //move the cursor one back
+        currentCursor->next = Back1; //link Back1 to currentCursor
+        
+        Back1->prev = currentCursor; //link currentCursor to Back1
+        end = Back1; //assign Back1 as end node
+        xPosition--;
+        
+        backSelected = true;
+    }
+
+
+    else
+    {
+        return;
+    }
+}
+
+
+void TextEditor::Forward() //F
+{
+    if (currentCursor->next != nullptr)
+    {
+        //cout << "hello" << endl;
+        Node* Forward = currentCursor; //keeps track of the cursor before moving forward
+        currentCursor = currentCursor->next; //move the cursor one forward
+
+
+        Forward->next = currentCursor; //link currentCursor to Forward
+        currentCursor->prev = Forward; //link Forward to currentCursor
+        end = currentCursor; //assign currentCursor as end node
+        xPosition++;
+    }
+
+
+    else
+    {
+        return;
+    }
+}
+
+
+void TextEditor::DeleteRow() //DR
+{
+    Node* currentIndex = rows[currentRow]->next;
+
+
+    if (currentIndex == nullptr)
+    {
+        return;
+    }
+
+
+    else
+    {
+        while (currentIndex->next != nullptr)
+        {
+            if (currentIndex->next != nullptr)
+            {
+                currentIndex->next->prev = currentIndex->prev;
+                currentIndex->prev->next = currentIndex->next;
+            }
+
+
+            currentIndex->prev->next = nullptr;
+
+
+            currentIndex = currentIndex->next;
+       }
+    }
+}
+
+
+void TextEditor::BackSpace() //deleting character to the left of the cursor
+{
+    if (currentCursor != nullptr)
+    {
+        Node* BackSpace = currentCursor;
+        currentCursor = currentCursor->prev; //move cursor back
+        BackSpace->prev->next = nullptr; //currentCursor->next = nullptr (now that currentCursor brought one step left)
+        xPosition--;
+        delete BackSpace;
+    }
+}
+
+
+void TextEditor::DeleteLetter(int currentrow, char c) //DL
+{
+    start = rows[currentrow]->next; //start already declared as Node* in class
+
+
+    if (start == nullptr)
+    {
+        return;
+    }
+
+
+    while (start != nullptr)
+    {
+        if (start->letter == c)
+        {
+            if (start->next != nullptr)
+            {
+                start->next->prev = start->prev;
+                start->prev->next = start->next;
+            }
+            else 
+            //start->next is a nullptr, so don't access start->next and link it to start->prev; only set start->prev->next to nullptr
+            {
+                start->prev->next = nullptr;
+                delete start;
+                return;
+            }
+        }
+            
+        start = start->next; //to keep traversing row
+    }
+}
+
+
+void TextEditor::DeleteAllLetter (char c) //DX
+{
+    for (int i = 0; i < 10; i++)
+    {
+        start = rows[i]->next;
+
+
+        while (start != nullptr)
+        {
+            if (start->letter == c)
+            {
+                if (start->next != nullptr)
+                {
+                    start->next->prev = start->prev;
+                    start->prev->next = start->next;
+                }
+                else
+                {
+                    start->prev->next = nullptr;
+                }
+            }
+            start = start->next;
+
+
+            if (start == nullptr)
+            {
+               delete start;
+            }
+            
+        }
+    }
+}
+
+
+void TextEditor::DisplayInputFile(string input)
+{
+    string line;
+    int xR, yR; 
+    xR = 12; 
+    yR = 3; 
+
+
+    MyRectangle R(10, 2, 10, 41, 219, true);
+    R.Draw();
+
+
+    ifstream inputDisplay(input);
+
+
+        while (inputDisplay.peek() != -1)
+        {
+            getline(inputDisplay, line);
+            R.gotoxy(xR, yR);
+            cout << line << endl;
+            yR++;
+        }
+
+
+    inputDisplay.close();
+}
+
+
+void TextEditor::DisplayOutput(TextEditor m, int currentRow) //for Add, BackSpace
+{
+    int xRO = 27;
+    int yRO = 4 + currentRow;
+
+
+    MyRectangle RO(25, 2, 12, 41, 219, true);
+    RO.Draw();
+    RO.gotoxy(23, 3);
+    cout << "Simulation Output" << endl;
+
+
+    MyRectangle myCursor(25, 2, 1, 1, 219, true);
+  
+    Node* t = m.rows[currentRow]->next;
+
+
+    if (t != nullptr)
+    {
+        while (t != nullptr)
+        {
+            myCursor.gotoxy(xRO, yRO);
+            myCursor.setForeGroundAndBackGroundColor(15, 4);
+            cout << t->letter;
+
+
+            Sleep(250);
+            t = t->next;
+            xRO++;
+        }
+    }
+}
+
+
+void TextEditor::DisplayDL(TextEditor m, int currentRow, char c)
+{
+    int xRO = 27;
+    int yRO = 4 + currentRow;
+ 
+    MyRectangle RO(25, 2, 12, 41, 219, true);
+    RO.Draw();
+    RO.gotoxy(23, 3);
+    cout << "Simulation Output" << endl;
+
+
+    RO.gotoxy(xRO, yRO);
+
+
+    Node* t = m.rows[currentRow]->next;
+
+
+    while (t != nullptr)
+    {
+        if (t->letter == c)
+        {
+            cout << ' ';
+        }
+
+
+        else
+        {
+            cout << t->letter;
+        }
+
+
+        Sleep(250);
+        t = t->next;
+    }
+}
+
+
+void TextEditor::DisplayDR(TextEditor m, int currentRow)
+{
+    int xRO = 27; 
+    int yRO = 4 + currentRow;
+
+
+    MyRectangle RO(25, 2, 12, 41, 219, true);
+    RO.Draw();
+    RO.gotoxy(23, 3);
+    cout << "Simulation Output" << endl;
+
+
+    RO.gotoxy(xRO, yRO);
+
+
+    Node* t = m.rows[currentRow]->next;
+
+
+    if (t != nullptr)
+    {
+        while (t != nullptr)
+        {
+            cout << ' ';
+            Sleep(250);
+            t = t->next;
+        }
+    }
+}
+
+
+void TextEditor::DisplayDX(TextEditor m, char c)
+{
+    int xRO = 27;
+    int yRO = 4;
+
+
+    MyRectangle RO(25, 2, 12, 41, 219, true);
+    RO.Draw();
+    RO.gotoxy(23, 3);
+    cout << "Simulation Output" << endl;
+
+
+    MyRectangle myCursor(25, 2, 1, 1, 219, true);
+    
+    for (int i = 0; i < 10; i++)
+    {
+        RO.gotoxy(xRO, yRO);
+        myCursor.gotoxy(xRO, yRO);
+
+
+        Node* t = m.rows[i]->next;
+
+
+        if (t != nullptr)
+        {
+            while (t != nullptr)
+            {
+                if (t->letter == c)
+                {
+                    cout << ' ';
+                    cout << ' '; // in case letter is a few spaces left in LL compared to display
+                }
+
+
+                else
+                {
+                    myCursor.setForeGroundAndBackGroundColor(15, 4);
+                    cout << t->letter;
+                }
+
+
+                Sleep(250);
+                t = t->next;
+            }
+        }
+        yRO++;
+    }
+}
+
+
+void TextEditor::DisplayFinalOutput(TextEditor m)
+{
+    int xRO = 52;
+    int yRO = 4;
+
+
+    MyRectangle RO(48, 2, 12, 41, 219, true);
+    RO.Draw();
+    RO.gotoxy(48, 3);
+    RO.setForeGroundAndBackGroundColor(15, 2);
+
+
+    cout << "Final Output" << endl;
+
+
+    for (int i = 0; i < 10; i++)
+    {
+        RO.gotoxy(xRO, yRO);
+
+
+        Node* t = m.rows[i]->next;
+        if (t != nullptr)
+        {
+            while (t != nullptr)
+            {
+                cout << t->letter;
+                Sleep(250); //for simulation of each element 
+                t = t->next;
+            }
+            cout << endl;
+        }
+        yRO++;
+    }
+}
+
+
+
+
+void main()
+{
+    char parameter;
+    string inputCommand;
+    TextEditor myEditor;
+    ifstream input("c:\\temp\\input.txt"); //changed to c:\temp\input.txt for submission
+    TextArt T("c:\\temp\\input.txt", 10, 3, 14, 0, 14, 10);
+    T.Display();
+
+
+    while (input.peek() != -1)
+    {
+        input >> inputCommand;
+        T.ColorNext();
+        Sleep(300);
+
+
+        if (inputCommand == "NL")
+        {
+            myEditor.currentRow++;
+            myEditor.yPosition++;
+            myEditor.xPosition = 0;
+        }
+
+
+        else if (inputCommand == "B")
+        {
+            myEditor.Back();
+        }
+
+
+        else if (inputCommand == "F")
+        {
+            myEditor.Forward();
+        }
+
+
+        else if (inputCommand == "A")
+        {
+            input >> parameter;
+            myEditor.Add(parameter);
+            myEditor.DisplayOutput(myEditor, myEditor.currentRow);
+        }
+
+
+        else if (inputCommand == "DL")
+        {
+            input >> parameter;
+            myEditor.DisplayDL(myEditor, myEditor.currentRow, parameter);
+            myEditor.DeleteLetter(myEditor.currentRow, parameter);
+        }
+
+
+        else if (inputCommand == "DR")
+        {
+            myEditor.DisplayDR(myEditor, myEditor.currentRow);
+            myEditor.DeleteRow();
+            myEditor.currentRow--;
+        }
+
+
+        else if (inputCommand == "BS")
+        {
+            myEditor.BackSpace();
+            myEditor.DisplayOutput(myEditor, myEditor.currentRow);
+        }
+
+
+        else if (inputCommand == "DX")
+        {
+            input >> parameter;
+            myEditor.DisplayDX(myEditor, parameter);
+            myEditor.DeleteAllLetter(parameter);
+        }
+
+
+        Sleep(250);
+    }
+    input.close();
+
+
+    myEditor.DisplayFinalOutput(myEditor);
+
+
+    while (1); //how to stop ending message from appearing
+}
